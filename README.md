@@ -1,5 +1,8 @@
 # One Click AI SMM
 
+[![CI](https://github.com/saoneclick/oneclick-ai-smm/actions/workflows/ci.yml/badge.svg)](https://github.com/saoneclick/oneclick-ai-smm/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Личный AI-SMM-специалист в Telegram: собирает бриф, выбирает стратегию, пишет
 пост под цель, проверяет себя по чек-листу, готовит карточку и галерею, предлагает
 публикацию в Telegram, MAX, VK и Дзен.
