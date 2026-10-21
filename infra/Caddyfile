@@ -1,0 +1,17 @@
+{$N8N_DOMAIN} {
+	encode gzip zstd
+	reverse_proxy n8n:5678
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}
+
+dzen.saoneclick.ru {
+	root * /srv/dzen
+	encode gzip
+	file_server
+	header /feed.xml Content-Type "application/rss+xml; charset=utf-8"
+}

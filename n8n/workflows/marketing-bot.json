@@ -1,0 +1,3147 @@
+{
+  "name": "Marketing Bot",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2200,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 10
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n01a",
+      "name": "Get Offset",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2000,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT value FROM bot_state WHERE key='tg_offset';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n01b",
+      "name": "Poll Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1800,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const offset = parseInt($input.first().json.value || '0', 10) || 0;\nconst res = await this.helpers.httpRequest({ method: 'GET', url: 'https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/getUpdates', qs: { offset: offset, timeout: 0, allowed_updates: JSON.stringify(['message','callback_query','business_connection']) }, json: true, timeout: 30000 });\nconst updates = (res && res.result) ? res.result : [];\nconst newOffset = updates.length ? (updates[updates.length - 1].update_id + 1) : offset;\nreturn [{ json: { offset: String(newOffset), updates: updates } }];"
+      }
+    },
+    {
+      "id": "n01c",
+      "name": "Save Offset",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1600,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bot_state SET value=$1 WHERE key='tg_offset';",
+        "options": {
+          "queryReplacement": "={{ [ $json.offset ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n01d",
+      "name": "Emit Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1400,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const updates = $('Poll Updates').item.json.updates || [];\nreturn updates.map(function (u) { return { json: u }; });"
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Is Callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1200,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.callback_query !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Msg",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1000,
+        -300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "m1",
+              "name": "chatId",
+              "value": "={{ $json.message.chat.id }}",
+              "type": "number"
+            },
+            {
+              "id": "m2",
+              "name": "text",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -800,
+        -300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "start"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/menu",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "menu"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c3",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/queue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "queue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c4",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c5",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "/post",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "post"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "other"
+        }
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Send Welcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        -460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: 'Привет! Я помогу собрать пост и картинку.\\n\\n🧠 AI-Маркетолог — бриф, стратегия и пост под цель (фото, скрины и ссылки можно присылать прямо в чат).\\n➕ Новый пост — быстрый режим по теме.\\n/done <что сделал> — пост-кейс о свершении.\\n/queue — что в очереди на публикацию.' }) }}"
+      }
+    },
+    {
+      "id": "n05q",
+      "name": "Get Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -600,
+        -600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, topic, to_char((scheduled_at AT TIME ZONE 'Asia/Yekaterinburg'), 'DD.MM HH24:MI') AS sched_local FROM content_drafts WHERE status IN ('scheduled','smm_scheduled') ORDER BY scheduled_at ASC, id ASC LIMIT 20;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n05q2",
+      "name": "Format Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(function (i) { return i.json; });\nif (!items.length) { return [{ json: { text: '📭 Очередь пуста — нет запланированных постов.', keyboard: { inline_keyboard: [] } } }]; }\nconst lines = []; const kb = [];\nitems.forEach(function (d) {\n  lines.push('#' + d.id + ' — ' + d.sched_local + ' — ' + (d.topic || ''));\n  kb.push([\n    { text: '❌ Отменить #' + d.id, callback_data: 'cancelq:' + d.id },\n    { text: '🕐 +1 день #' + d.id, callback_data: 'delay:' + d.id }\n  ]);\n});\nreturn [{ json: { text: '🗓 В очереди (время Оренбург):\\n\\n' + lines.join('\\n'), keyboard: { inline_keyboard: kb } } }];"
+      }
+    },
+    {
+      "id": "n05q3",
+      "name": "Send Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -200,
+        -600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: $json.text, reply_markup: $json.keyboard }) }}"
+      }
+    },
+    {
+      "id": "n05m",
+      "name": "Send Menu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        -740
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: 'Чем помочь?', reply_markup: { inline_keyboard: [ [ {text: '➕ Новый пост', callback_data: 'menu:new'}, {text: '📄 Посмотреть пост', callback_data: 'menu:view'} ], [ {text: '🧠 AI-Маркетолог', callback_data: 'menu:smm'} ], [ {text: '🗓 Расписание', callback_data: 'menu:schedule'}, {text: '📊 Очередь', callback_data: 'menu:queue'} ], [ {text: '📱 Сторис из последнего поста', callback_data: 'menu:story'} ] ] } }) }}"
+      }
+    },
+    {
+      "id": "n05p",
+      "name": "Parse Post Id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        -880
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = ($('Msg').item.json.text || '');\nconst m = t.match(/(\\d+)/);\nreturn [{ json: { postId: m ? parseInt(m[1], 10) : 0 } }];"
+      }
+    },
+    {
+      "id": "n05p2",
+      "name": "Has Id?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -400,
+        -880
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.postId }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n05p3",
+      "name": "Get Post",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -200,
+        -960
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, topic, status, tg_text FROM content_drafts WHERE id=$1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.postId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n05p4",
+      "name": "Send Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        -960
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '📄 Пост #' + $('Get Post').item.json.id + ' [' + $('Get Post').item.json.status + ']\\nТема: ' + $('Get Post').item.json.topic + '\\n\\n' + $('Get Post').item.json.tg_text }) }}"
+      }
+    },
+    {
+      "id": "n05p5",
+      "name": "Ask Post Id",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -200,
+        -800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: 'Пришлите номер поста, например: /post 7' }) }}"
+      }
+    },
+    {
+      "id": "n05b",
+      "name": "Get State",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -600,
+        -180
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE((SELECT value FROM bot_state WHERE key='awaiting_reason_draft'),'') AS reason_draft, COALESCE((SELECT value FROM bot_state WHERE key='awaiting_post_view'),'') AS post_view;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n05c",
+      "name": "State",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -400,
+        -180
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.reason_draft }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reason"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.post_view }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "view"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n05v",
+      "name": "Get Post View",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -200,
+        -320
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, topic, status, tg_text FROM content_drafts WHERE id=$1;",
+        "options": {
+          "queryReplacement": "={{ [ parseInt($('Get State').item.json.post_view, 10) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n05v2",
+      "name": "Send Post View",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        -320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '📄 Пост #' + $('Get Post View').item.json.id + ' [' + $('Get Post View').item.json.status + ']\\n\\n' + $('Get Post View').item.json.tg_text }) }}"
+      }
+    },
+    {
+      "id": "n05v3",
+      "name": "Clear Post View",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        200,
+        -320
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bot_state SET value='' WHERE key='awaiting_post_view';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n05d",
+      "name": "Get Draft MSG",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -200,
+        -120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, topic FROM content_drafts WHERE id=$1;",
+        "options": {
+          "queryReplacement": "={{ [ parseInt($json.value, 10) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n05e",
+      "name": "Prep Rework MSG",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst text = ($('Msg').item.json.text || '').trim();\nreturn [{ json: { id: r.id, topic: r.topic, reasonText: text || 'переделать' } }];"
+      }
+    },
+    {
+      "id": "n05i",
+      "name": "Send Ack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '⏳ Готовлю черновик, займёт до минуты…' }) }}"
+      }
+    },
+    {
+      "id": "n05j",
+      "name": "Get Rules",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -400,
+        -60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(string_agg(rule, E'\\n'), '') AS rules FROM style_rules WHERE active = true;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Generate Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        -60
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const raw = ($('Msg').item.json.text || '').trim();\nlet mode = 'topic', topic = raw;\nif (/^\\/done\\b/i.test(raw)) { mode = 'done'; topic = raw.replace(/^\\/done\\b/i, '').trim(); }\nlet image_url = '';\nconst urlMatch = topic.match(/(?:^|\\s)(https?:\\/\\/[^\\s]+)\\s*$/i);\nif (urlMatch) {\n  const withoutUrl = topic.slice(0, urlMatch.index).trim();\n  if (withoutUrl) { image_url = urlMatch[1].replace(/[),.;]+$/, ''); topic = withoutUrl; }\n}\nconst ANGLES = ['кейс с конкретными цифрами и результатом','личная история или эксперимент основателя','разбор частой ошибки и как сделать правильно','чек-лист из 3-5 практичных пунктов','вопрос-провокация к аудитории с ответом','инструмент или фишка с примером применения','сравнение «до и после» автоматизации','короткий инсайт с неожиданным выводом','развенчание мифа о Битрикс24/AI','диалог с руководителем: типичное возражение и ответ'];const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];\nlet rules = ''; try { rules = $('Get Rules').item.json.rules || ''; } catch (e) { rules = ''; }\nconst system = \"\\u0422\\u044b \\u2014 \\u043a\\u043e\\u043d\\u0442\\u0435\\u043d\\u0442-\\u043c\\u0430\\u0440\\u043a\\u0435\\u0442\\u043e\\u043b\\u043e\\u0433 \\u043a\\u043e\\u043c\\u043f\\u0430\\u043d\\u0438\\u0438 \\u00abOne click\\u00bb (ONE CLICK) \\u0438\\u0437 \\u041e\\u0440\\u0435\\u043d\\u0431\\u0443\\u0440\\u0433\\u0430. \\u041a\\u043e\\u043c\\u043f\\u0430\\u043d\\u0438\\u044f \\u0441 2017 \\u0433\\u043e\\u0434\\u0430 \\u0432\\u043d\\u0435\\u0434\\u0440\\u044f\\u0435\\u0442 \\u0411\\u0438\\u0442\\u0440\\u0438\\u043a\\u044124 \\u0438 AI-\\u0430\\u0432\\u0442\\u043e\\u043c\\u0430\\u0442\\u0438\\u0437\\u0430\\u0446\\u0438\\u044e: \\u0434\\u0430\\u0448\\u0431\\u043e\\u0440\\u0434\\u044b, Telegram-\\u0431\\u043e\\u0442\\u044b, \\u0438\\u043d\\u0442\\u0435\\u0433\\u0440\\u0430\\u0446\\u0438\\u0438 CRM \\u0438 VK Ads, AI-\\u0430\\u0433\\u0435\\u043d\\u0442\\u044b, \\u0432\\u0430\\u0439\\u0431\\u043a\\u043e\\u0434\\u0438\\u043d\\u0433, AI-SEO. \\u0410\\u0443\\u0434\\u0438\\u0442\\u043e\\u0440\\u0438\\u044f: \\u0441\\u043e\\u0431\\u0441\\u0442\\u0432\\u0435\\u043d\\u043d\\u0438\\u043a\\u0438 \\u0438 \\u0440\\u0443\\u043a\\u043e\\u0432\\u043e\\u0434\\u0438\\u0442\\u0435\\u043b\\u0438 \\u043c\\u0430\\u043b\\u043e\\u0433\\u043e \\u0438 \\u0441\\u0440\\u0435\\u0434\\u043d\\u0435\\u0433\\u043e \\u0431\\u0438\\u0437\\u043d\\u0435\\u0441\\u0430. \\u041f\\u0438\\u0448\\u0438 \\u043e\\u0442 \\u043f\\u0435\\u0440\\u0432\\u043e\\u0433\\u043e \\u043b\\u0438\\u0446\\u0430, \\u0436\\u0438\\u0432\\u043e, \\u043a\\u0430\\u043a \\u043e\\u0441\\u043d\\u043e\\u0432\\u0430\\u0442\\u0435\\u043b\\u044c. \\u041f\\u043e\\u0441\\u0442 \\u0434\\u043e\\u043b\\u0436\\u0435\\u043d \\u0440\\u0430\\u0441\\u043a\\u0440\\u044b\\u0432\\u0430\\u0442\\u044c \\u0438\\u043c\\u0435\\u043d\\u043d\\u043e \\u0437\\u0430\\u0434\\u0430\\u043d\\u043d\\u0443\\u044e \\u0442\\u0435\\u043c\\u0443, \\u0430 \\u043d\\u0435 \\u043f\\u0440\\u0435\\u0432\\u0440\\u0430\\u0449\\u0430\\u0442\\u044c\\u0441\\u044f \\u0432 \\u043f\\u0435\\u0440\\u0435\\u0447\\u0435\\u043d\\u044c \\u0443\\u0441\\u043b\\u0443\\u0433. \\u0412\\u0430\\u0440\\u044c\\u0438\\u0440\\u0443\\u0439 \\u0437\\u0430\\u0447\\u0438\\u043d, \\u0441\\u0442\\u0440\\u0443\\u043a\\u0442\\u0443\\u0440\\u0443, \\u0434\\u043b\\u0438\\u043d\\u0443 \\u0438 \\u043f\\u0440\\u0438\\u0437\\u044b\\u0432. \\u0418\\u0437\\u0431\\u0435\\u0433\\u0430\\u0439 \\u0448\\u0442\\u0430\\u043c\\u043f\\u043e\\u0432 (\\u00ab\\u0432 \\u0441\\u043e\\u0432\\u0440\\u0435\\u043c\\u0435\\u043d\\u043d\\u043e\\u043c \\u043c\\u0438\\u0440\\u0435\\u00bb, \\u00ab\\u043d\\u0435 \\u0441\\u0435\\u043a\\u0440\\u0435\\u0442, \\u0447\\u0442\\u043e\\u00bb, \\u00ab\\u0434\\u0438\\u043d\\u0430\\u043c\\u0438\\u0447\\u043d\\u043e \\u0440\\u0430\\u0437\\u0432\\u0438\\u0432\\u0430\\u044e\\u0449\\u0438\\u0439\\u0441\\u044f\\u00bb). \\u042d\\u043c\\u043e\\u0434\\u0437\\u0438 \\u0443\\u043c\\u0435\\u0440\\u0435\\u043d\\u043d\\u043e (2-5), \\u043a\\u043e\\u0440\\u043e\\u0442\\u043a\\u0438\\u0435 \\u0430\\u0431\\u0437\\u0430\\u0446\\u044b, \\u043c\\u0430\\u043a\\u0441\\u0438\\u043c\\u0443\\u043c 3-4 \\u0445\\u0435\\u0448\\u0442\\u0435\\u0433\\u0430 \\u043f\\u043e \\u0441\\u043c\\u044b\\u0441\\u043b\\u0443. \\u0412\\u0435\\u0440\\u043d\\u0438 \\u0421\\u0422\\u0420\\u041e\\u0413\\u041e JSON-\\u043e\\u0431\\u044a\\u0435\\u043a\\u0442 \\u0431\\u0435\\u0437 markdown-\\u043e\\u0431\\u0451\\u0440\\u0442\\u043a\\u0438: {\\\"tg\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f Telegram\\\",\\\"vk\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f VK\\\",\\\"max\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f MAX\\\",\\\"headline\\\":\\\"\\u0446\\u0435\\u043f\\u043b\\u044f\\u044e\\u0449\\u0438\\u0439 \\u0437\\u0430\\u0433\\u043e\\u043b\\u043e\\u0432\\u043e\\u043a 3-7 \\u0441\\u043b\\u043e\\u0432 \\u0434\\u043b\\u044f \\u043a\\u0430\\u0440\\u0442\\u0438\\u043d\\u043a\\u0438\\\"}. Telegram \\u2014 \\u0441\\u0442\\u0440\\u043e\\u0433\\u043e \\u0434\\u043e 900 \\u0441\\u0438\\u043c\\u0432\\u043e\\u043b\\u043e\\u0432 (\\u0432\\u0430\\u0436\\u043d\\u043e: \\u044d\\u0442\\u043e \\u043f\\u043e\\u0434\\u043f\\u0438\\u0441\\u044c \\u043a \\u0444\\u043e\\u0442\\u043e), VK \\u2014 \\u0434\\u043e 700, MAX \\u2014 \\u0434\\u043e 700.\" + (rules ? '\\n\\nПРАВИЛА СТИЛЯ (обязательно соблюдать):\\n' + rules : '');\nconst userMsg = (mode === 'done'  ? 'Свершение (что сделали своими руками): ' + topic + '\\nНапиши пост-кейс: проблема → решение → результат/цифры → выгода для клиента. Формат подачи: ' + angle + '.'  : 'Тема: ' + topic + '\\nФормат подачи: ' + angle + '.')\n  + '\\nВерни строго JSON.';\nlet content = '';for (let attempt = 0; attempt < 3 && !content; attempt++) {  const res = await this.helpers.httpRequest({    method: 'POST',    url: 'https://api.deepseek.com/chat/completions',    headers: { Authorization: 'Bearer DEEPSEEK_API_KEY', 'Content-Type': 'application/json' },    body: { model: 'deepseek-v4-pro', messages: [ { role: 'system', content: system }, { role: 'user', content: userMsg } ],      temperature: 1.0, max_tokens: 16000, response_format: { type: 'json_object' } },    json: true, timeout: 180000  });  const ch = res && res.choices && res.choices[0] && res.choices[0].message;  content = (ch && ch.content) ? String(ch.content) : '';}let parsed = {};try { parsed = JSON.parse(content); } catch (e) {  const a = content.indexOf('{'), b = content.lastIndexOf('}');  if (a >= 0 && b > a) { try { parsed = JSON.parse(content.slice(a, b + 1)); } catch (e2) { parsed = {}; } }}const tgRaw = (parsed.tg || content);\nconst tgFit = tgRaw.length > 1000 ? tgRaw.slice(0, 997).replace(/\\s+\\S*$/, '') + '…' : tgRaw;\nreturn [{ json: { topic, angle, mode, image_url, headline: parsed.headline || topic, tg: tgFit, vk: parsed.vk || content, max: parsed.max || content } }];"
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Insert Draft",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        -60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO content_drafts (topic, tg_text, vk_text, max_text, source, headline, image_url) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, tg_text, topic, headline, image_url;",
+        "options": {
+          "queryReplacement": "={{ [ $json.topic, $json.tg, $json.vk, $json.max, $json.mode, $json.headline, $json.image_url ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n07b",
+      "name": "Make Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://cardrender:8000/card",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ headline: $json.headline, tag: 'AI-АВТОМАТИЗАЦИЯ', image_url: $json.image_url || '' }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Send Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "chat_id",
+              "value": "0"
+            },
+            {
+              "name": "caption",
+              "value": "={{ '📝 Черновик #' + $('Insert Draft').item.json.id + ' — ' + $('Insert Draft').item.json.topic }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "n08b",
+      "name": "Send Draft Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: $('Insert Draft').item.json.tg_text, reply_markup: { inline_keyboard: [[ {text: '✅ Опубликовать', callback_data: 'approve:' + $('Insert Draft').item.json.id}, {text: '⏰ По расписанию', callback_data: 'schedule:' + $('Insert Draft').item.json.id} ],[ {text: '✏️ Переделать', callback_data: 'rework:' + $('Insert Draft').item.json.id}, {text: '❌ Отмена', callback_data: 'reject:' + $('Insert Draft').item.json.id} ]] } }) }}"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Parse Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cq = $input.first().json.callback_query;\nconst data = cq.data || '';\nconst parts = data.split(':');\nlet action = parts[0];\nlet arg1 = '', draftId = 0;\nif (action === 'menu') { action = 'menu' + (parts[1] || ''); arg1 = parts[1] || ''; }\nelse if (action === 'reason') { arg1 = parts[1] || ''; draftId = parseInt(parts[2], 10); }\nelse { arg1 = parts[1] || ''; draftId = parseInt(parts[1], 10); }\nreturn [{ json: { action: action, arg1: arg1, draftId: draftId, callbackId: cq.id, chatId: cq.message.chat.id, messageId: cq.message.message_id } }];"
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Answer Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -800,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/answerCallbackQuery",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackId }) }}"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -600,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a1",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "approve"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a2",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a3",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "rework",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rework"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a4",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "reason",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reason"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a5",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "other",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "other"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a6",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a7",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "cancelq",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cancelq"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a8",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "delay",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "delay"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a9",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "menunew",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "menunew"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a10",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "menuview",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "menuview"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a11",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "menusched",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "menusched"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a12",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "menuqueue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "menuqueue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a13",
+                    "leftValue": "={{ $('Parse Callback').item.json.action }}",
+                    "rightValue": "menustory",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "menustory"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Get Draft",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, topic, tg_text, vk_text, max_text, headline, image_url FROM content_drafts WHERE id=$1;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n20b",
+      "name": "Make Card Pub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://cardrender:8000/card",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ headline: $json.headline, tag: 'AI-АВТОМАТИЗАЦИЯ', image_url: $json.image_url || '' }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Publish TG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "chat_id",
+              "value": "-1001671276079"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Get Draft').item.json.tg_text.slice(0, 1024) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "n21b",
+      "name": "Publish VK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        20,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vk.com/method/wall.post",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "owner_id",
+              "value": "0"
+            },
+            {
+              "name": "from_group",
+              "value": "1"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Get Draft').item.json.vk_text }}"
+            },
+            {
+              "name": "access_token",
+              "value": "VK_TOKEN"
+            },
+            {
+              "name": "v",
+              "value": "5.199"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "n21c",
+      "name": "Publish MAX",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        220,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://botapi.max.ru/messages?chat_id=0",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Get Draft').item.json.max_text, attachments: [ { type: 'image', payload: { token: $('MAX Photo').item.json.token } } ] }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9TanMKsR4agO8sBe",
+          "name": "MAX Bot"
+        }
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Mark Published",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        420,
+        120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET status='published', published_tg=$1, updated_at=now() WHERE id=$2 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Publish TG').item.json.result.message_id, $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n22b",
+      "name": "Feedback Approve",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        620,
+        120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO feedback (draft_id, action, reason_code) VALUES ($1,'approve','') ;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Edit Approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        820,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '✅ Пост #' + $('Parse Callback').item.json.draftId + ' опубликован.\\n\\n📣 Telegram — с карточкой\\n📣 VK — текст\\n📣 MAX — текст' }) }}"
+      }
+    },
+    {
+      "id": "n24",
+      "name": "Schedule Draft",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        320
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET status='scheduled', scheduled_at=(date_trunc('day', now() AT TIME ZONE 'Asia/Yekaterinburg') + interval '1 day' + interval '9 hours') AT TIME ZONE 'Asia/Yekaterinburg', updated_at=now() WHERE id=$1 RETURNING id, to_char((scheduled_at AT TIME ZONE 'Asia/Yekaterinburg'), 'DD.MM.YYYY HH24:MI') AS sched_local;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n24b",
+      "name": "Feedback Schedule",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -180,
+        320
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO feedback (draft_id, action, reason_code) VALUES ($1,'schedule','');",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Edit Scheduled",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '⏰ Пост #' + $('Parse Callback').item.json.draftId + ' встал в очередь.\\n\\n📅 Публикация: ' + $('Schedule Draft').item.json.sched_local + ' (Оренбург)\\n📣 Каналы: Telegram (с карточкой), VK, MAX\\n\\nПосмотреть очередь: /queue' }) }}"
+      }
+    },
+    {
+      "id": "n30",
+      "name": "Ask Reason",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '✏️ Что переделать в посте #' + $('Parse Callback').item.json.draftId + '? Выберите причину или напишите свой вариант текстом.', reply_markup: { inline_keyboard: [[ {text: '🎯 Не по теме', callback_data: 'reason:notopic:' + $('Parse Callback').item.json.draftId}, {text: '🎩 Слишком официально', callback_data: 'reason:formal:' + $('Parse Callback').item.json.draftId} ],[ {text: '📏 Слишком длинно', callback_data: 'reason:long:' + $('Parse Callback').item.json.draftId}, {text: '🔢 Нет цифр', callback_data: 'reason:nofacts:' + $('Parse Callback').item.json.draftId} ],[ {text: '🗣 Не наш тон', callback_data: 'reason:tone:' + $('Parse Callback').item.json.draftId}, {text: '🚪 Плохой зачин', callback_data: 'reason:start:' + $('Parse Callback').item.json.draftId} ],[ {text: '✍️ Своя причина', callback_data: 'other:' + $('Parse Callback').item.json.draftId} ]] } }) }}"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Get Draft CB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, topic FROM content_drafts WHERE id=$1;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Prep Rework CB",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst c = $('Parse Callback').item.json;\nconst MAP = { notopic:'не по теме', formal:'слишком официально', long:'слишком длинно', nofacts:'нет конкретики и цифр', tone:'не наш тон', start:'плохой зачин', other:'другая причина' };\nreturn [{ json: { id: r.id, topic: r.topic, reasonText: MAP[c.arg1] || 'переделать' } }];"
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Regenerate CB",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $input.first().json;\nconst topic = d.topic || '';\nconst reason = d.reasonText || 'переделать';\nconst ANGLES = ['кейс с конкретными цифрами и результатом','личная история или эксперимент основателя','разбор частой ошибки и как сделать правильно','чек-лист из 3-5 практичных пунктов','вопрос-провокация к аудитории с ответом','инструмент или фишка с примером применения','сравнение «до и после» автоматизации','короткий инсайт с неожиданным выводом','развенчание мифа о Битрикс24/AI','диалог с руководителем: типичное возражение и ответ'];const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];\nlet rules = ''; try { rules = $('Get Rules').item.json.rules || ''; } catch (e) { rules = ''; }\nconst system = \"\\u0422\\u044b \\u2014 \\u043a\\u043e\\u043d\\u0442\\u0435\\u043d\\u0442-\\u043c\\u0430\\u0440\\u043a\\u0435\\u0442\\u043e\\u043b\\u043e\\u0433 \\u043a\\u043e\\u043c\\u043f\\u0430\\u043d\\u0438\\u0438 \\u00abOne click\\u00bb (ONE CLICK) \\u0438\\u0437 \\u041e\\u0440\\u0435\\u043d\\u0431\\u0443\\u0440\\u0433\\u0430. \\u041a\\u043e\\u043c\\u043f\\u0430\\u043d\\u0438\\u044f \\u0441 2017 \\u0433\\u043e\\u0434\\u0430 \\u0432\\u043d\\u0435\\u0434\\u0440\\u044f\\u0435\\u0442 \\u0411\\u0438\\u0442\\u0440\\u0438\\u043a\\u044124 \\u0438 AI-\\u0430\\u0432\\u0442\\u043e\\u043c\\u0430\\u0442\\u0438\\u0437\\u0430\\u0446\\u0438\\u044e: \\u0434\\u0430\\u0448\\u0431\\u043e\\u0440\\u0434\\u044b, Telegram-\\u0431\\u043e\\u0442\\u044b, \\u0438\\u043d\\u0442\\u0435\\u0433\\u0440\\u0430\\u0446\\u0438\\u0438 CRM \\u0438 VK Ads, AI-\\u0430\\u0433\\u0435\\u043d\\u0442\\u044b, \\u0432\\u0430\\u0439\\u0431\\u043a\\u043e\\u0434\\u0438\\u043d\\u0433, AI-SEO. \\u0410\\u0443\\u0434\\u0438\\u0442\\u043e\\u0440\\u0438\\u044f: \\u0441\\u043e\\u0431\\u0441\\u0442\\u0432\\u0435\\u043d\\u043d\\u0438\\u043a\\u0438 \\u0438 \\u0440\\u0443\\u043a\\u043e\\u0432\\u043e\\u0434\\u0438\\u0442\\u0435\\u043b\\u0438 \\u043c\\u0430\\u043b\\u043e\\u0433\\u043e \\u0438 \\u0441\\u0440\\u0435\\u0434\\u043d\\u0435\\u0433\\u043e \\u0431\\u0438\\u0437\\u043d\\u0435\\u0441\\u0430. \\u041f\\u0438\\u0448\\u0438 \\u043e\\u0442 \\u043f\\u0435\\u0440\\u0432\\u043e\\u0433\\u043e \\u043b\\u0438\\u0446\\u0430, \\u0436\\u0438\\u0432\\u043e, \\u043a\\u0430\\u043a \\u043e\\u0441\\u043d\\u043e\\u0432\\u0430\\u0442\\u0435\\u043b\\u044c. \\u041f\\u043e\\u0441\\u0442 \\u0434\\u043e\\u043b\\u0436\\u0435\\u043d \\u0440\\u0430\\u0441\\u043a\\u0440\\u044b\\u0432\\u0430\\u0442\\u044c \\u0438\\u043c\\u0435\\u043d\\u043d\\u043e \\u0437\\u0430\\u0434\\u0430\\u043d\\u043d\\u0443\\u044e \\u0442\\u0435\\u043c\\u0443, \\u0430 \\u043d\\u0435 \\u043f\\u0440\\u0435\\u0432\\u0440\\u0430\\u0449\\u0430\\u0442\\u044c\\u0441\\u044f \\u0432 \\u043f\\u0435\\u0440\\u0435\\u0447\\u0435\\u043d\\u044c \\u0443\\u0441\\u043b\\u0443\\u0433. \\u0412\\u0430\\u0440\\u044c\\u0438\\u0440\\u0443\\u0439 \\u0437\\u0430\\u0447\\u0438\\u043d, \\u0441\\u0442\\u0440\\u0443\\u043a\\u0442\\u0443\\u0440\\u0443, \\u0434\\u043b\\u0438\\u043d\\u0443 \\u0438 \\u043f\\u0440\\u0438\\u0437\\u044b\\u0432. \\u0418\\u0437\\u0431\\u0435\\u0433\\u0430\\u0439 \\u0448\\u0442\\u0430\\u043c\\u043f\\u043e\\u0432 (\\u00ab\\u0432 \\u0441\\u043e\\u0432\\u0440\\u0435\\u043c\\u0435\\u043d\\u043d\\u043e\\u043c \\u043c\\u0438\\u0440\\u0435\\u00bb, \\u00ab\\u043d\\u0435 \\u0441\\u0435\\u043a\\u0440\\u0435\\u0442, \\u0447\\u0442\\u043e\\u00bb, \\u00ab\\u0434\\u0438\\u043d\\u0430\\u043c\\u0438\\u0447\\u043d\\u043e \\u0440\\u0430\\u0437\\u0432\\u0438\\u0432\\u0430\\u044e\\u0449\\u0438\\u0439\\u0441\\u044f\\u00bb). \\u042d\\u043c\\u043e\\u0434\\u0437\\u0438 \\u0443\\u043c\\u0435\\u0440\\u0435\\u043d\\u043d\\u043e (2-5), \\u043a\\u043e\\u0440\\u043e\\u0442\\u043a\\u0438\\u0435 \\u0430\\u0431\\u0437\\u0430\\u0446\\u044b, \\u043c\\u0430\\u043a\\u0441\\u0438\\u043c\\u0443\\u043c 3-4 \\u0445\\u0435\\u0448\\u0442\\u0435\\u0433\\u0430 \\u043f\\u043e \\u0441\\u043c\\u044b\\u0441\\u043b\\u0443. \\u0412\\u0435\\u0440\\u043d\\u0438 \\u0421\\u0422\\u0420\\u041e\\u0413\\u041e JSON-\\u043e\\u0431\\u044a\\u0435\\u043a\\u0442 \\u0431\\u0435\\u0437 markdown-\\u043e\\u0431\\u0451\\u0440\\u0442\\u043a\\u0438: {\\\"tg\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f Telegram\\\",\\\"vk\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f VK\\\",\\\"max\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f MAX\\\",\\\"headline\\\":\\\"\\u0446\\u0435\\u043f\\u043b\\u044f\\u044e\\u0449\\u0438\\u0439 \\u0437\\u0430\\u0433\\u043e\\u043b\\u043e\\u0432\\u043e\\u043a 3-7 \\u0441\\u043b\\u043e\\u0432 \\u0434\\u043b\\u044f \\u043a\\u0430\\u0440\\u0442\\u0438\\u043d\\u043a\\u0438\\\"}. Telegram \\u2014 \\u0441\\u0442\\u0440\\u043e\\u0433\\u043e \\u0434\\u043e 900 \\u0441\\u0438\\u043c\\u0432\\u043e\\u043b\\u043e\\u0432 (\\u0432\\u0430\\u0436\\u043d\\u043e: \\u044d\\u0442\\u043e \\u043f\\u043e\\u0434\\u043f\\u0438\\u0441\\u044c \\u043a \\u0444\\u043e\\u0442\\u043e), VK \\u2014 \\u0434\\u043e 700, MAX \\u2014 \\u0434\\u043e 700.\" + (rules ? '\\n\\nПРАВИЛА СТИЛЯ (обязательно соблюдать):\\n' + rules : '');\nconst userMsg = 'Тема: ' + topic + '\\nПредыдущий вариант отклонён. Причина: ' + reason + '.\\n'  + 'Перепиши СОВЕРШЕННО ПО-ДРУГОМУ (другой зачин и структура), учти причину. Формат подачи: ' + angle + '. Верни строго JSON.';\nlet content = '';for (let attempt = 0; attempt < 3 && !content; attempt++) {  const res = await this.helpers.httpRequest({    method: 'POST',    url: 'https://api.deepseek.com/chat/completions',    headers: { Authorization: 'Bearer DEEPSEEK_API_KEY', 'Content-Type': 'application/json' },    body: { model: 'deepseek-v4-pro', messages: [ { role: 'system', content: system }, { role: 'user', content: userMsg } ],      temperature: 1.15, max_tokens: 16000, response_format: { type: 'json_object' } },    json: true, timeout: 180000  });  const ch = res && res.choices && res.choices[0] && res.choices[0].message;  content = (ch && ch.content) ? String(ch.content) : '';}let parsed = {};try { parsed = JSON.parse(content); } catch (e) {  const a = content.indexOf('{'), b = content.lastIndexOf('}');  if (a >= 0 && b > a) { try { parsed = JSON.parse(content.slice(a, b + 1)); } catch (e2) { parsed = {}; } }}const tgRaw = (parsed.tg || content);\nconst tgFit = tgRaw.length > 1000 ? tgRaw.slice(0, 997).replace(/\\s+\\S*$/, '') + '…' : tgRaw;\nreturn [{ json: { draftId: d.id, topic, reasonText: reason, headline: parsed.headline || topic, tg: tgFit, vk: parsed.vk || content, max: parsed.max || content } }];"
+      }
+    },
+    {
+      "id": "n36",
+      "name": "Update Draft CB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET tg_text=$1, vk_text=$2, max_text=$3, status='draft', updated_at=now() WHERE id=$4 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.tg, $json.vk, $json.max, $json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n37",
+      "name": "Feedback Rework CB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        420,
+        720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO feedback (draft_id, action, reason_code, reason_text) VALUES ($1,'rework','',$2);",
+        "options": {
+          "queryReplacement": "={{ [ $('Regenerate CB').item.json.draftId, $('Regenerate CB').item.json.reasonText ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n38",
+      "name": "Edit Reworked",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        720
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '📝 Черновик #' + $('Regenerate CB').item.json.draftId + ' (новый вариант, причина: ' + $('Regenerate CB').item.json.reasonText + ')\\n\\n' + $('Regenerate CB').item.json.tg, reply_markup: { inline_keyboard: [[ {text: '✅ Опубликовать', callback_data: 'approve:' + $('Regenerate CB').item.json.draftId}, {text: '⏰ По расписанию', callback_data: 'schedule:' + $('Regenerate CB').item.json.draftId} ],[ {text: '✏️ Переделать', callback_data: 'rework:' + $('Regenerate CB').item.json.draftId}, {text: '❌ Отмена', callback_data: 'reject:' + $('Regenerate CB').item.json.draftId} ]] } }) }}"
+      }
+    },
+    {
+      "id": "n39",
+      "name": "Clear State CB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        820,
+        720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bot_state SET value='' WHERE key='awaiting_reason_draft';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n35b",
+      "name": "Regenerate MSG",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $input.first().json;\nconst topic = d.topic || '';\nconst reason = d.reasonText || 'переделать';\nconst ANGLES = ['кейс с конкретными цифрами и результатом','личная история или эксперимент основателя','разбор частой ошибки и как сделать правильно','чек-лист из 3-5 практичных пунктов','вопрос-провокация к аудитории с ответом','инструмент или фишка с примером применения','сравнение «до и после» автоматизации','короткий инсайт с неожиданным выводом','развенчание мифа о Битрикс24/AI','диалог с руководителем: типичное возражение и ответ'];const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];\nlet rules = ''; try { rules = $('Get Rules').item.json.rules || ''; } catch (e) { rules = ''; }\nconst system = \"\\u0422\\u044b \\u2014 \\u043a\\u043e\\u043d\\u0442\\u0435\\u043d\\u0442-\\u043c\\u0430\\u0440\\u043a\\u0435\\u0442\\u043e\\u043b\\u043e\\u0433 \\u043a\\u043e\\u043c\\u043f\\u0430\\u043d\\u0438\\u0438 \\u00abOne click\\u00bb (ONE CLICK) \\u0438\\u0437 \\u041e\\u0440\\u0435\\u043d\\u0431\\u0443\\u0440\\u0433\\u0430. \\u041a\\u043e\\u043c\\u043f\\u0430\\u043d\\u0438\\u044f \\u0441 2017 \\u0433\\u043e\\u0434\\u0430 \\u0432\\u043d\\u0435\\u0434\\u0440\\u044f\\u0435\\u0442 \\u0411\\u0438\\u0442\\u0440\\u0438\\u043a\\u044124 \\u0438 AI-\\u0430\\u0432\\u0442\\u043e\\u043c\\u0430\\u0442\\u0438\\u0437\\u0430\\u0446\\u0438\\u044e: \\u0434\\u0430\\u0448\\u0431\\u043e\\u0440\\u0434\\u044b, Telegram-\\u0431\\u043e\\u0442\\u044b, \\u0438\\u043d\\u0442\\u0435\\u0433\\u0440\\u0430\\u0446\\u0438\\u0438 CRM \\u0438 VK Ads, AI-\\u0430\\u0433\\u0435\\u043d\\u0442\\u044b, \\u0432\\u0430\\u0439\\u0431\\u043a\\u043e\\u0434\\u0438\\u043d\\u0433, AI-SEO. \\u0410\\u0443\\u0434\\u0438\\u0442\\u043e\\u0440\\u0438\\u044f: \\u0441\\u043e\\u0431\\u0441\\u0442\\u0432\\u0435\\u043d\\u043d\\u0438\\u043a\\u0438 \\u0438 \\u0440\\u0443\\u043a\\u043e\\u0432\\u043e\\u0434\\u0438\\u0442\\u0435\\u043b\\u0438 \\u043c\\u0430\\u043b\\u043e\\u0433\\u043e \\u0438 \\u0441\\u0440\\u0435\\u0434\\u043d\\u0435\\u0433\\u043e \\u0431\\u0438\\u0437\\u043d\\u0435\\u0441\\u0430. \\u041f\\u0438\\u0448\\u0438 \\u043e\\u0442 \\u043f\\u0435\\u0440\\u0432\\u043e\\u0433\\u043e \\u043b\\u0438\\u0446\\u0430, \\u0436\\u0438\\u0432\\u043e, \\u043a\\u0430\\u043a \\u043e\\u0441\\u043d\\u043e\\u0432\\u0430\\u0442\\u0435\\u043b\\u044c. \\u041f\\u043e\\u0441\\u0442 \\u0434\\u043e\\u043b\\u0436\\u0435\\u043d \\u0440\\u0430\\u0441\\u043a\\u0440\\u044b\\u0432\\u0430\\u0442\\u044c \\u0438\\u043c\\u0435\\u043d\\u043d\\u043e \\u0437\\u0430\\u0434\\u0430\\u043d\\u043d\\u0443\\u044e \\u0442\\u0435\\u043c\\u0443, \\u0430 \\u043d\\u0435 \\u043f\\u0440\\u0435\\u0432\\u0440\\u0430\\u0449\\u0430\\u0442\\u044c\\u0441\\u044f \\u0432 \\u043f\\u0435\\u0440\\u0435\\u0447\\u0435\\u043d\\u044c \\u0443\\u0441\\u043b\\u0443\\u0433. \\u0412\\u0430\\u0440\\u044c\\u0438\\u0440\\u0443\\u0439 \\u0437\\u0430\\u0447\\u0438\\u043d, \\u0441\\u0442\\u0440\\u0443\\u043a\\u0442\\u0443\\u0440\\u0443, \\u0434\\u043b\\u0438\\u043d\\u0443 \\u0438 \\u043f\\u0440\\u0438\\u0437\\u044b\\u0432. \\u0418\\u0437\\u0431\\u0435\\u0433\\u0430\\u0439 \\u0448\\u0442\\u0430\\u043c\\u043f\\u043e\\u0432 (\\u00ab\\u0432 \\u0441\\u043e\\u0432\\u0440\\u0435\\u043c\\u0435\\u043d\\u043d\\u043e\\u043c \\u043c\\u0438\\u0440\\u0435\\u00bb, \\u00ab\\u043d\\u0435 \\u0441\\u0435\\u043a\\u0440\\u0435\\u0442, \\u0447\\u0442\\u043e\\u00bb, \\u00ab\\u0434\\u0438\\u043d\\u0430\\u043c\\u0438\\u0447\\u043d\\u043e \\u0440\\u0430\\u0437\\u0432\\u0438\\u0432\\u0430\\u044e\\u0449\\u0438\\u0439\\u0441\\u044f\\u00bb). \\u042d\\u043c\\u043e\\u0434\\u0437\\u0438 \\u0443\\u043c\\u0435\\u0440\\u0435\\u043d\\u043d\\u043e (2-5), \\u043a\\u043e\\u0440\\u043e\\u0442\\u043a\\u0438\\u0435 \\u0430\\u0431\\u0437\\u0430\\u0446\\u044b, \\u043c\\u0430\\u043a\\u0441\\u0438\\u043c\\u0443\\u043c 3-4 \\u0445\\u0435\\u0448\\u0442\\u0435\\u0433\\u0430 \\u043f\\u043e \\u0441\\u043c\\u044b\\u0441\\u043b\\u0443. \\u0412\\u0435\\u0440\\u043d\\u0438 \\u0421\\u0422\\u0420\\u041e\\u0413\\u041e JSON-\\u043e\\u0431\\u044a\\u0435\\u043a\\u0442 \\u0431\\u0435\\u0437 markdown-\\u043e\\u0431\\u0451\\u0440\\u0442\\u043a\\u0438: {\\\"tg\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f Telegram\\\",\\\"vk\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f VK\\\",\\\"max\\\":\\\"\\u0442\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043b\\u044f MAX\\\",\\\"headline\\\":\\\"\\u0446\\u0435\\u043f\\u043b\\u044f\\u044e\\u0449\\u0438\\u0439 \\u0437\\u0430\\u0433\\u043e\\u043b\\u043e\\u0432\\u043e\\u043a 3-7 \\u0441\\u043b\\u043e\\u0432 \\u0434\\u043b\\u044f \\u043a\\u0430\\u0440\\u0442\\u0438\\u043d\\u043a\\u0438\\\"}. Telegram \\u2014 \\u0441\\u0442\\u0440\\u043e\\u0433\\u043e \\u0434\\u043e 900 \\u0441\\u0438\\u043c\\u0432\\u043e\\u043b\\u043e\\u0432 (\\u0432\\u0430\\u0436\\u043d\\u043e: \\u044d\\u0442\\u043e \\u043f\\u043e\\u0434\\u043f\\u0438\\u0441\\u044c \\u043a \\u0444\\u043e\\u0442\\u043e), VK \\u2014 \\u0434\\u043e 700, MAX \\u2014 \\u0434\\u043e 700.\" + (rules ? '\\n\\nПРАВИЛА СТИЛЯ (обязательно соблюдать):\\n' + rules : '');\nconst userMsg = 'Тема: ' + topic + '\\nПредыдущий вариант отклонён. Причина: ' + reason + '.\\n'  + 'Перепиши СОВЕРШЕННО ПО-ДРУГОМУ (другой зачин и структура), учти причину. Формат подачи: ' + angle + '. Верни строго JSON.';\nlet content = '';for (let attempt = 0; attempt < 3 && !content; attempt++) {  const res = await this.helpers.httpRequest({    method: 'POST',    url: 'https://api.deepseek.com/chat/completions',    headers: { Authorization: 'Bearer DEEPSEEK_API_KEY', 'Content-Type': 'application/json' },    body: { model: 'deepseek-v4-pro', messages: [ { role: 'system', content: system }, { role: 'user', content: userMsg } ],      temperature: 1.15, max_tokens: 16000, response_format: { type: 'json_object' } },    json: true, timeout: 180000  });  const ch = res && res.choices && res.choices[0] && res.choices[0].message;  content = (ch && ch.content) ? String(ch.content) : '';}let parsed = {};try { parsed = JSON.parse(content); } catch (e) {  const a = content.indexOf('{'), b = content.lastIndexOf('}');  if (a >= 0 && b > a) { try { parsed = JSON.parse(content.slice(a, b + 1)); } catch (e2) { parsed = {}; } }}const tgRaw = (parsed.tg || content);\nconst tgFit = tgRaw.length > 1000 ? tgRaw.slice(0, 997).replace(/\\s+\\S*$/, '') + '…' : tgRaw;\nreturn [{ json: { draftId: d.id, topic, reasonText: reason, headline: parsed.headline || topic, tg: tgFit, vk: parsed.vk || content, max: parsed.max || content } }];"
+      }
+    },
+    {
+      "id": "n36b",
+      "name": "Update Draft MSG",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        400,
+        -120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET tg_text=$1, vk_text=$2, max_text=$3, status='draft', updated_at=now() WHERE id=$4 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.tg, $json.vk, $json.max, $json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n37b",
+      "name": "Feedback Rework MSG",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        600,
+        -120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO feedback (draft_id, action, reason_code, reason_text) VALUES ($1,'rework','',$2);",
+        "options": {
+          "queryReplacement": "={{ [ $('Regenerate MSG').item.json.draftId, $('Regenerate MSG').item.json.reasonText ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n38b",
+      "name": "Send Reworked MSG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        -120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '📝 Черновик #' + $('Regenerate MSG').item.json.draftId + ' (переделан, причина: ' + $('Regenerate MSG').item.json.reasonText + ')\\n\\n' + $('Regenerate MSG').item.json.tg, reply_markup: { inline_keyboard: [[ {text: '✅ Опубликовать', callback_data: 'approve:' + $('Regenerate MSG').item.json.draftId}, {text: '⏰ По расписанию', callback_data: 'schedule:' + $('Regenerate MSG').item.json.draftId} ],[ {text: '✏️ Переделать', callback_data: 'rework:' + $('Regenerate MSG').item.json.draftId}, {text: '❌ Отмена', callback_data: 'reject:' + $('Regenerate MSG').item.json.draftId} ]] } }) }}"
+      }
+    },
+    {
+      "id": "n39b",
+      "name": "Clear State MSG",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1000,
+        -120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bot_state SET value='' WHERE key='awaiting_reason_draft';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n40",
+      "name": "Set Awaiting",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        900
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bot_state (key, value) VALUES ('awaiting_reason_draft', $1) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value;",
+        "options": {
+          "queryReplacement": "={{ [ String($('Parse Callback').item.json.draftId) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n41",
+      "name": "Ask Reason Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        900
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '✍️ Напишите причину одним сообщением для поста #' + $('Parse Callback').item.json.draftId }) }}"
+      }
+    },
+    {
+      "id": "n50",
+      "name": "Mark Rejected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        1100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET status='rejected', updated_at=now() WHERE id=$1 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n50b",
+      "name": "Feedback Reject",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -180,
+        1100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO feedback (draft_id, action, reason_code) VALUES ($1,'reject','');",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n51",
+      "name": "Edit Rejected",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20,
+        1100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '❌ Черновик #' + $('Parse Callback').item.json.draftId + ' отклонён' }) }}"
+      }
+    },
+    {
+      "id": "n60",
+      "name": "Cancel Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        1300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET status='draft', scheduled_at=NULL, updated_at=now() WHERE id=$1 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n61",
+      "name": "Edit Queue Cancel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        1300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '❌ Пост #' + $('Parse Callback').item.json.draftId + ' убран из очереди и вернулся в черновики.\\n\\nОбновить список: /queue' }) }}"
+      }
+    },
+    {
+      "id": "n62",
+      "name": "Delay Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        1500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET scheduled_at = scheduled_at + interval '1 day', updated_at=now() WHERE id=$1 RETURNING id, to_char((scheduled_at AT TIME ZONE 'Asia/Yekaterinburg'), 'DD.MM.YYYY HH24:MI') AS sched_local;",
+        "options": {
+          "queryReplacement": "={{ [ $('Parse Callback').item.json.draftId ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n63",
+      "name": "Edit Queue Delay",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        1500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/editMessageText",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Parse Callback').item.json.chatId, message_id: $('Parse Callback').item.json.messageId, text: '🕐 Пост #' + $('Parse Callback').item.json.draftId + ' перенесён на ' + $('Delay Queue').item.json.sched_local + ' (Оренбург).\\n\\nОбновить список: /queue' }) }}"
+      }
+    },
+    {
+      "id": "n70",
+      "name": "Ask Topic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        1700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '➕ Отправьте тему поста одним сообщением — сделаю черновик с карточкой. Если хотите свою картинку, добавьте ссылку на неё в конце сообщения.' }) }}"
+      }
+    },
+    {
+      "id": "n71",
+      "name": "Set Awaiting View",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        1900
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bot_state (key, value) VALUES ('awaiting_post_view','1') ON CONFLICT (key) DO UPDATE SET value='1';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "n72",
+      "name": "Ask Post Num",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        1900
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '📄 Пришлите номер поста (например: 7) — покажу полный текст.' }) }}"
+      }
+    },
+    {
+      "id": "mxp1",
+      "name": "MAX Photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://cardrender:8000/max_photo",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ headline: $('Get Draft').item.json.headline, tag: 'AI-АВТОМАТИЗАЦИЯ', image_url: $('Get Draft').item.json.image_url || '', max_token: 'MAX_BOT_TOKEN' }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "biz1",
+      "name": "Is Business?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1300,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1",
+              "leftValue": "={{ $json.business_connection !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "biz2",
+      "name": "Store Business",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1080,
+        340
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bot_state (key, value) VALUES ('business_connection_id', $1) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value;",
+        "options": {
+          "queryReplacement": "={{ [ $json.business_connection.id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "st1",
+      "name": "Get BC",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        2100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT value FROM bot_state WHERE key='business_connection_id') AS bc, (SELECT headline FROM content_drafts WHERE status='published' ORDER BY id DESC LIMIT 1) AS headline, (SELECT published_tg FROM content_drafts WHERE status='published' ORDER BY id DESC LIMIT 1) AS tg_msg, (SELECT image_url FROM content_drafts WHERE status='published' ORDER BY id DESC LIMIT 1) AS image_url;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "st2",
+      "name": "Story Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        2100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://cardrender:8000/story_card",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ headline: $json.headline, tag: 'AI-АВТОМАТИЗАЦИЯ', cta: 'Ссылка в описании ↓', image_url: $json.image_url || '' }) }}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "st3",
+      "name": "Post Story",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20,
+        2100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/postStory",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "storyfile",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "business_connection_id",
+              "value": "={{ $('Get BC').item.json.bc }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ JSON.stringify({ type: 'photo', photo: 'attach://storyfile' }) }}"
+            },
+            {
+              "name": "active_period",
+              "value": "86400"
+            },
+            {
+              "name": "caption",
+              "value": "={{ '<a href=\"https://t.me/oneclickaistudio/' + $('Get BC').item.json.tg_msg + '\">Читать пост в канале →</a>' }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "HTML"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "st4",
+      "name": "Story Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        2100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '📱 Сторис опубликована. <a href=\"https://t.me/oneclickaistudio/' + $('Get BC').item.json.tg_msg + '\">Открыть пост #' + $('Get BC').item.json.tg_msg + '</a>', parse_mode: 'HTML' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "sg1",
+      "name": "Story Guard",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -380,
+        2100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bot_state (key, value) VALUES ('last_story_ts', extract(epoch from now())::text) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value WHERE (extract(epoch from now()) - COALESCE(NULLIF(bot_state.value, ''), '0')::numeric) > 300 RETURNING value AS ts;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "e205c6be-e8a3-4693-9bd9-f2d70c8a1a63",
+      "name": "SMM Router",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        -180,
+        420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://smm:8000/event",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "94da2a37-2816-44b1-993f-6145bdc13e0d",
+      "name": "SMM Handled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        40,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "smm1",
+              "leftValue": "={{ $json.handled }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "12a04a7b-e77d-4ac8-be6f-955c5552003b",
+      "name": "SMM Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        260,
+        330
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Offset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Offset": {
+      "main": [
+        [
+          {
+            "node": "Poll Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Updates": {
+      "main": [
+        [
+          {
+            "node": "Save Offset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Offset": {
+      "main": [
+        [
+          {
+            "node": "Emit Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emit Updates": {
+      "main": [
+        [
+          {
+            "node": "SMM Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Callback?": {
+      "main": [
+        [
+          {
+            "node": "Parse Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Msg": {
+      "main": [
+        [
+          {
+            "node": "Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Command": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Post Id",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Post Id": {
+      "main": [
+        [
+          {
+            "node": "Has Id?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Id?": {
+      "main": [
+        [
+          {
+            "node": "Get Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask Post Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Post": {
+      "main": [
+        [
+          {
+            "node": "Send Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Queue": {
+      "main": [
+        [
+          {
+            "node": "Format Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Queue": {
+      "main": [
+        [
+          {
+            "node": "Send Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get State": {
+      "main": [
+        [
+          {
+            "node": "State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State": {
+      "main": [
+        [
+          {
+            "node": "Get Draft MSG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Post View",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Post View": {
+      "main": [
+        [
+          {
+            "node": "Send Post View",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Post View": {
+      "main": [
+        [
+          {
+            "node": "Clear Post View",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Draft MSG": {
+      "main": [
+        [
+          {
+            "node": "Prep Rework MSG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Rework MSG": {
+      "main": [
+        [
+          {
+            "node": "Regenerate MSG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Ack": {
+      "main": [
+        [
+          {
+            "node": "Get Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Rules": {
+      "main": [
+        [
+          {
+            "node": "Generate Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Draft": {
+      "main": [
+        [
+          {
+            "node": "Insert Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Draft": {
+      "main": [
+        [
+          {
+            "node": "Make Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Card": {
+      "main": [
+        [
+          {
+            "node": "Send Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Draft": {
+      "main": [
+        [
+          {
+            "node": "Send Draft Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Callback": {
+      "main": [
+        [
+          {
+            "node": "Answer Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer Callback": {
+      "main": [
+        [
+          {
+            "node": "Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action": {
+      "main": [
+        [
+          {
+            "node": "Get Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Schedule Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask Reason",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Draft CB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Awaiting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delay Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask Topic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Awaiting View",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Story Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Draft": {
+      "main": [
+        [
+          {
+            "node": "Make Card Pub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Card Pub": {
+      "main": [
+        [
+          {
+            "node": "Publish TG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish TG": {
+      "main": [
+        [
+          {
+            "node": "Publish VK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish VK": {
+      "main": [
+        [
+          {
+            "node": "MAX Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish MAX": {
+      "main": [
+        [
+          {
+            "node": "Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Published": {
+      "main": [
+        [
+          {
+            "node": "Feedback Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Approve": {
+      "main": [
+        [
+          {
+            "node": "Edit Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Draft": {
+      "main": [
+        [
+          {
+            "node": "Feedback Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Schedule": {
+      "main": [
+        [
+          {
+            "node": "Edit Scheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Draft CB": {
+      "main": [
+        [
+          {
+            "node": "Prep Rework CB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Rework CB": {
+      "main": [
+        [
+          {
+            "node": "Regenerate CB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regenerate CB": {
+      "main": [
+        [
+          {
+            "node": "Update Draft CB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Draft CB": {
+      "main": [
+        [
+          {
+            "node": "Feedback Rework CB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Rework CB": {
+      "main": [
+        [
+          {
+            "node": "Edit Reworked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Reworked": {
+      "main": [
+        [
+          {
+            "node": "Clear State CB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regenerate MSG": {
+      "main": [
+        [
+          {
+            "node": "Update Draft MSG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Draft MSG": {
+      "main": [
+        [
+          {
+            "node": "Feedback Rework MSG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Rework MSG": {
+      "main": [
+        [
+          {
+            "node": "Send Reworked MSG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reworked MSG": {
+      "main": [
+        [
+          {
+            "node": "Clear State MSG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Awaiting": {
+      "main": [
+        [
+          {
+            "node": "Ask Reason Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Rejected": {
+      "main": [
+        [
+          {
+            "node": "Feedback Reject",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Queue": {
+      "main": [
+        [
+          {
+            "node": "Edit Queue Cancel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay Queue": {
+      "main": [
+        [
+          {
+            "node": "Edit Queue Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Awaiting View": {
+      "main": [
+        [
+          {
+            "node": "Ask Post Num",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Reject": {
+      "main": [
+        [
+          {
+            "node": "Edit Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAX Photo": {
+      "main": [
+        [
+          {
+            "node": "Publish MAX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Business?": {
+      "main": [
+        [
+          {
+            "node": "Store Business",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get BC": {
+      "main": [
+        [
+          {
+            "node": "Story Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Story Card": {
+      "main": [
+        [
+          {
+            "node": "Post Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Story": {
+      "main": [
+        [
+          {
+            "node": "Story Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Story Guard": {
+      "main": [
+        [
+          {
+            "node": "Get BC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMM Router": {
+      "main": [
+        [
+          {
+            "node": "SMM Handled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMM Handled?": {
+      "main": [
+        [
+          {
+            "node": "SMM Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Business?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  }
+}

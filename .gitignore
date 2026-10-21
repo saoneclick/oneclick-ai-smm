@@ -1,0 +1,24 @@
+# Secrets & local env
+.env
+!.env.example
+infra/.env
+infra/*.local.env
+**/*.local.env
+
+# Runtime data
+infra/data/
+uploads/
+services/ai_smm/tests/_uploads/
+services/ai_smm/tests/_dzen/
+services/ai_smm/_uploads/
+services/ai_smm/_dzen/
+.pytest_cache/
+*.log
+__pycache__/
+*.pyc
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

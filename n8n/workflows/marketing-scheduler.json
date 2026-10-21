@@ -1,0 +1,339 @@
+{
+  "name": "Marketing Scheduler",
+  "nodes": [
+    {
+      "id": "s1",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -200,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "name": "Get Due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, tg_text, vk_text, max_text, headline, image_url FROM content_drafts WHERE status='scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= now() ORDER BY scheduled_at ASC LIMIT 1;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "s2b",
+      "name": "Make Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        180,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://cardrender:8000/card",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ headline: $json.headline, tag: 'AI-АВТОМАТИЗАЦИЯ', image_url: $json.image_url || '' }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "name": "Publish TG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        340,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "chat_id",
+              "value": "-1001671276079"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Get Due').item.json.tg_text.slice(0, 1024) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "name": "Publish VK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        460,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vk.com/method/wall.post",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "owner_id",
+              "value": "0"
+            },
+            {
+              "name": "from_group",
+              "value": "1"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Get Due').item.json.vk_text }}"
+            },
+            {
+              "name": "access_token",
+              "value": "VK_TOKEN"
+            },
+            {
+              "name": "v",
+              "value": "5.199"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "name": "Publish MAX",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        680,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://botapi.max.ru/messages?chat_id=0",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Get Due').item.json.max_text, attachments: [ { type: 'image', payload: { token: $('MAX Photo').item.json.token } } ] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9TanMKsR4agO8sBe",
+          "name": "MAX Bot"
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "name": "Mark Published",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_drafts SET status='published', published_tg=$1, updated_at=now() WHERE id=$2 RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Publish TG').item.json.result.message_id, $('Get Due').item.json.id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "00qIO7ep7cO2qRlA",
+          "name": "Postgres marketing"
+        }
+      }
+    },
+    {
+      "id": "s7",
+      "name": "Notify Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://RELAY_HOST/tg-RELAY_SECRET/botBOT_TOKEN/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: 0, text: '✅ Автопубликация: пост #' + $('Get Due').item.json.id + ' опубликован в Telegram, VK и MAX' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "mxp2",
+      "name": "MAX Photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://cardrender:8000/max_photo",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ headline: $('Get Due').item.json.headline, tag: 'AI-АВТОМАТИЗАЦИЯ', image_url: $('Get Due').item.json.image_url || '', max_token: 'MAX_BOT_TOKEN' }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Due": {
+      "main": [
+        [
+          {
+            "node": "Make Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Card": {
+      "main": [
+        [
+          {
+            "node": "Publish TG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish TG": {
+      "main": [
+        [
+          {
+            "node": "Publish VK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish VK": {
+      "main": [
+        [
+          {
+            "node": "MAX Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish MAX": {
+      "main": [
+        [
+          {
+            "node": "Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Published": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAX Photo": {
+      "main": [
+        [
+          {
+            "node": "Publish MAX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionOrder": "v1"
+  }
+}
