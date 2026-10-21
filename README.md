@@ -39,6 +39,10 @@
 Больше вариантов: [overview.jpg](docs/assets/overview.jpg) и
 [photo-overview.jpg](docs/assets/photo-overview.jpg). Сторис — [story.jpg](docs/assets/story.jpg).
 
+Свежие обложки для Дзена (10 статей): [dzen-refresh.jpg](docs/assets/dzen-refresh.jpg).
+
+![Dzen covers](docs/assets/dzen-refresh.jpg)
+
 ## Архитектура
 
 ```mermaid
