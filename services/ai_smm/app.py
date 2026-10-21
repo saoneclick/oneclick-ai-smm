@@ -360,6 +360,11 @@ async def handle_message(chat_id: int, update: dict[str, Any]) -> None:
     if step == "audience_custom":
         data["audience"] = text[:160]
         data.pop("audience_custom", None)
+        if data.get("editing"):
+            data["editing"] = ""
+            await update_session(session["id"], "summary", data, "active")
+            await send_summary(chat_id, data)
+            return
         await update_session(session["id"], "topic", data, "active")
         await send_question(chat_id, "topic", data)
         return
@@ -627,6 +632,9 @@ async def run_publish(chat_id: int, draft_id: int) -> None:
     if draft.get("status") == "test":
         await send_text(chat_id, "Это тестовый черновик — публикация отключена.")
         return
+    if draft.get("status") in ("published", "smm_scheduled", "rejected"):
+        await send_text(chat_id, "Этот пост уже опубликован, стоит в очереди или отменён.")
+        return
     cover, assets = await _draft_material(draft)
     channels = [c for c in (draft.get("channels") or "").split(",") if c]
     if not channels:
@@ -662,6 +670,9 @@ async def run_schedule(chat_id: int, draft_id: int) -> None:
     draft = await get_draft(draft_id)
     if not draft:
         await send_text(chat_id, "Черновик не найден.")
+        return
+    if draft.get("status") in ("published", "smm_scheduled", "rejected", "test"):
+        await send_text(chat_id, "Этот черновик уже нельзя поставить в очередь.")
         return
     await mark_scheduled(draft_id)
     await log_feedback(draft_id, "schedule")
